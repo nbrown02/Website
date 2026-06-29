@@ -1,0 +1,300 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Continuously right-sizing your Jira Epics using Power Automate | Nicolas Brown</title><link rel="stylesheet" href="../../../../../assets/style.css"></head><body class="plain-page"><header class="site-header"><a class="brand" href="../../../../../index.html">Nicolas Brown</a><nav class="nav"><a href="../../../../../index.html">Home</a><a href="../../../../../about/index.html">About</a><a href="../../../../../tools/index.html">Tools</a><a href="../../../../../speaking/index.html">Speaking</a><a href="../../../../../book/index.html">Books</a><a href="../../../../../blog/index.html">Blog</a><a class="contact-link" href="../../../../../contact/index.html">Contact</a></nav></header><main class="article"><h1>Continuously right-sizing your Jira Epics using Power Automate</h1><div class="date">24 January 2025</div><div class="content"><div class="sqs-html-content" >
+  <p  ><em>A guide on how you can automate the continuous right-sizing of your Jira Epics using it’s REST API and Power Automate…</em></p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/03504a3d-52a2-48d7-a0cc-2a26c0a7a26f/1_Q0mjFjyWIpX0Uk_imPL3yA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <h1 >Context</h1><p  >Right-sizing is a flow management practice that ensures work items remain within a manageable size. Most teams apply this at the User Story level, using historical Cycle Time data to determine the 85th percentile as their right-size, meaning 85% of items are completed within a set number of days. This is often referred to as a Service Level Expectation (SLE).</p>
+</div>
+       [caption id="" align="alignnone" width="828"]<img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/e30d62f7-fe6e-46ab-a03a-2513a2552e56/0_oHovLZ51PB0E2k0L-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=" “85% of the time we complete items in 7 days or less” "/>  “85% of the time we complete items in 7 days or less” [/caption] 
+<div class="sqs-html-content" >
+  <p  >In combination with this, teams use Work Item Age, the amount of elapsed time in calendar days since a work item started, to proactively manage the flow of work that is “in-progress”. Previously I have shared how you can automate the <a href="https://nbrown02.medium.com/adding-work-item-age-to-your-jira-issues-using-power-automate-e1346849c2c1" target="_blank">Work Item Age</a> to your Jira issues.</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/f059fc0d-719e-4bb9-b7c9-e03c28813625/0_d0Yj80EhwQAMAz26-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Right-sizing isn’t limited to Stories — it also applies to Epics, which group multiple Stories. For Epics, right-sizing means keeping the child item count below a manageable limit.</p><p  >To understand what this right-size is, we choose a selected date range, plotting our completed Epics against the date they were completed and the number of child items they had. We can then use percentiles to derive what our ‘right-size’ is (again typically taking the 85th percentile):</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/aa113f58-eb4d-472b-8c1a-c911aa387d1e/1_-Z4XtXcQgdK0mmB4FiO2bw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Good teams will then use this data to proactively check their current ‘open’ Epics (those in progress/yet to start) and see if those Epics are right-sized:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/34e5bebe-2234-41eb-bc69-3f3cd200f23b/1_J_CC-bB4fYWaHxj9Y01ylA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Right-sizing brings many benefits for teams as it means faster feedback, reduced risk and improved predictability. The challenge is that this data/information will almost always live in a different location to the teams’ work. In order for practices such as right-sizing to become adopted by more teams it needs to be simple and visible every day so that teams are informed around their slicing efforts and growth of Epic size.</p><p  >Thankfully, we can leverage tools like Power Automate, combined with Jira’s REST API to make this information readily accessible to all teams…</p><h1 >Prerequisites</h1><p  >This guide assumes the following prerequisites:</p><ul data-rte-list="default"><li><p  >Within Jira you have access to add custom fields to a project</p></li><li><p  >You know <a href="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/" target="_blank">how to create (and have created) an API token in Jira</a></p></li><li><p  >Statuses/status categories in your Jira project are <a href="https://support.atlassian.com/jira-work-management/docs/workflows-and-statuses-for-the-board/" target="_blank">configured correctly</a></p></li><li><p  >Epics are owned by a single ‘team’ — rather than shared across teams</p></li><li><p  >Epics regularly flow to ‘done’ — rather than remaining open forever</p></li><li><p  >You have access to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> and can create premium flows</p></li></ul><p  >With all those in place — let’s get started!</p><h1 >Adding a custom field for if an Epic is right-sized is not</h1><p  >We first need to add a new field into our Epics called <em>Right-sized?</em> As we are focusing on right-sizing of Epics, for the purpose of simplicity in this blog we will stick to <em>Epic</em> as the issue type we will set this up for.</p><p  ><strong>Please note, if you are wanting to do this for multiple issue types you will have to repeat the process of adding this field for each work item type.</strong></p><ul data-rte-list="default"><li><p  >Click on ‘Project settings’ then choose Epic</p></li><li><p  >Choose ‘Text’ and give the field the name of Rightsized</p></li><li><p  >Add any more information if you want to do so (optional)</p></li><li><p  >Once done, click ‘Save Changes’</p></li></ul>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/64c5de69-1a21-41ff-8ad0-4d3bfa30f022/1_81kjsOXPZgIz_lRGLWuxvw.gif?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >We also then need to find out what this new custom field is called, as we will be querying this in the API. To do so, follow <a href="https://confluence.atlassian.com/jirakb/how-to-find-id-for-custom-field-s-744522503.html" target="_blank">this guide</a> that <a href="https://www.linkedin.com/in/caidyrn/" target="_blank">Caidyrn Roder</a> pointed me to previously.</p><h1 >Understanding our Epic right-size</h1><p  >As mentioned earlier in the blog, we plot our completed Epics over a given time period (in this case 12 weeks) against the date they were completed on and the number of child items those Epics had. We can then draw percentiles against our data to understand our ‘right-size’:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/8200d598-17cb-457d-92a6-4d71abf94740/1_-Z4XtXcQgdK0mmB4FiO2bw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >If you’re wondering where the tools are to do this, I have a <a href="https://github.com/nbrown02/Capacity-Planning-Feature-Monte-Carlo" target="_blank">free template for Power BI you can download and connect to/visualise your Jira data</a>.</p><p  >For the purpose of simplicity, in this blog we’re going to choose our 85th percentile as our right-size value so, <strong>for this team, they have a right-size of 14 child items or less.</strong></p><h1 >Automating our right-size check</h1><p  >Start by going to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> and creating a <em>Scheduled cloud flow. </em>Call this whatever you want but we want this to run every day at a time that makes sense (probably before people start work). Once you’re happy with the time click create:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/6eda48c0-04a5-4829-9239-098800617acf/1_4ZOnBbqnoTVNrqPW3LjBNA.gif?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Next we need to click ‘+ new step’ to <em>Initialize variable</em> — this is essentially where we will ‘store’ what our Rightsize is which, to start with, will be an Integer with a value of 0:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/63386362-c8df-4fb9-8331-79e3c33d870a/1_dpQZKEn4s6hbutvODjmGoA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >We’re going to repeat this step a few more times, as we’re <em>Initialize variable</em> for ranking Epics (as a ‘float’ type) by their child item count:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/4e3d1d1f-3f5f-41b1-b8c1-4586740a47c3/1_uAeWWFi-yOOIhbtf5VzbIg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we will <em>Initialize Variable</em> to flatten our array value, which we’re going to need towards the end of the flow to get our data in the format we need it to be in to do the necessary calculations:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/5d0d0920-4651-46f9-8f62-d6f298cecf8b/1_73_YxyBikpgJnkbwE-muDQ-ezgif.com-webp-to-jpg-converter+%281%29.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Our final<em> Initialize Variable</em> will be for our Interpolated Value, which is a ‘float’ value we’re going to need when it comes to calculating the percentile for our right-sizing:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/54ad9de1-a4de-455f-88ab-96f23c143167/1_JLicRyD2xY2TMWW9YBv6MA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to choose a HTTP step to get back all our Epics completed in the last 12 weeks. You’ll need to set the method as ‘GET’ and add in the the URL. The URL (replace JIRAINSTANCE and PROJECT with your details) should be:</p><p  >https://JIRAINSTANCE.atlassian.net/rest/api/3/search?jql=project%20%3D%20PROJECT%20AND%20statuscategory%20%3D%20Complete%20AND%20statuscategorychangeddate%20%3E%3D%20-12w%20AND%20hierarchyLevel%20%3D%201&amp;fields=id&amp;maxResults=100</p><p  >Click ‘Show advanced options’ to add in your access token details:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/9651d2df-e9b2-40ba-ac0e-8579d31e90f6/1_3-mpDGUhap1GvHBHm89UMQ-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we need to add in a <em>Parse JSON</em> step. This is where we are essentially going to extract our the Issue Key from our completed Epics. Choose ‘body’ as the content and add a schema like so:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "expand": {
+            "type": "string"
+        },
+        "startAt": {
+            "type": "integer"
+        },
+        "maxResults": {
+            "type": "integer"
+        },
+        "total": {
+            "type": "integer"
+        },
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "expand": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "self": {
+                        "type": "string"
+                    },
+                    "key": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "expand",
+                    "id",
+                    "self",
+                    "key"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/7bbd098d-8d3c-4c3d-8c13-3bd078b99cf0/1_FCPcJKiiwcf1dAGLmP26KQ-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re then going to add an <em>Apply to each</em> step, using the ‘issues’ value from our previous step. Then add a <em>HTTP </em>actionwhere we’re going to take the child count for each Epic. The first part of the URL (replace JIRAINSTANCE with your details) should be:</p><pre><code>https://JIRAINSTANCE.atlassian.net/rest/api/3/search?jql=%27Parent%27=</code></pre><p  >Then the id, and then:</p><pre><code>%20AND%20hierarchyLevel=0&amp;maxResults=0</code></pre><p  >Which should then look like so:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/75629299-dd49-49b8-83fe-65fd0b3b81e6/1_u9Pf0ifYKsXHahGd8jfAIg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Don’t forget to click ‘Show advanced options’ and add your access token details again. Then we’re going to add a Parse JSON action using Body as the content and the following schema:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "startAt": {
+            "type": "integer"
+        },
+        "maxResults": {
+            "type": "integer"
+        },
+        "total": {
+            "type": "integer"
+        },
+        "issues": {
+            "type": "array"
+        }
+    }
+}</code></pre><p  >Which should look like so:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/b3a59d4b-2f26-4808-8233-add025b8a323/1_ChdEw78vLvegwCvVt53i-A-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Next add a<em> Compose</em> action with the total from the previos step:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/ebc5a1ca-e159-4f9d-9857-2cde8c55bbf8/1_MnfqmHkYCzzdt5Gx9e6LFA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Next we’re going to <em>Append to array variable</em> the output of this to our ‘FlattenedArray’ variable:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/107472fa-cc6c-467b-a4f3-4cedf86f0d83/1_uMDFD4isbFOVwWz695c27Q-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to go outside our Apply to each loop and add a <em>Compose</em> step to sort our child item counts:</p><pre><code>sort(variables('FlattenedArray'))</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/fbb23721-8ece-49a0-aa72-5a86e697b4bc/1_SnobFnnZFzDU7pZV-m9ZDw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add a <em>Set Variable</em> step where we’re going to set our Rank variable using the following expression:</p><pre><code>float(add(mul(0.85, sub(length(outputs('SortedCounts')), 1)), 1))</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/0aa66f1c-9b4e-4849-b1f2-2c6312151070/1_LBoInOo7azRXqPuoGSUfZw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Next we’re going to do the part where we work out our 85th percentile. To start with, we first need to figure out the integer part. Add a compose action with the following expression:</p><pre><code>int(substring(string(variables('rank')), 0, indexOf(string(variables('rank')), '.')))</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/17d1d9d8-6072-48e5-8a6a-8be0fe99d3c5/1_5MKJ0BN01aocNRAfbQmn9Q-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then add another compose part for the fractional part, using the expression of:</p><pre><code>sub(float(variables('rank')), int(substring(string(variables('rank')), 0, indexOf(string(variables('rank')), '.'))))</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/319b4cbb-5ade-4c66-a869-65ae2f8c6c32/1_jdJbl9MX_GlROJw9oy91HQ-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add a Compose step for formatting this to be one decimal place, we do using:</p><pre><code>formatNumber(outputs('Compose_FractionalPart'), 'N1')</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/156ca6f8-b255-40cf-969e-2608c55616c8/1_LP8jUTPTSQaWuU-tpHpsvg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to initialize another variable, which we do simply to “re-sort” our array (I found in testing this was needed). This will have a value of:</p><pre><code>sort(variables('FlattenedArray'))</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/90e57781-eb72-4388-856c-a133187e368f/1_7MXRHlpR6frGolgaDFC8Xg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to set our FlattenedArray variable to be the output of this step:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/686c5a61-0cf9-410b-a693-01ce7ee2d29a/1_c4VGJ5zMRUIrtx9p6kTafw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we need to calculate the value at our Integer position:</p><pre><code>variables('FlattenedArray')[sub(int(outputs('Compose_IntegerPart')), 1)]</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/808fb2f4-304e-4f57-9d94-c66731ba4bc1/1_7atDoZUoKsKecvzUPVs3gg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then do the same again for the value at the next integer position:</p><pre><code>variables('FlattenedArray')[outputs('Compose_IntegerPart')]</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/30cc3935-372c-4468-a347-d184001de630/1_lFYpGG3VA2J0Fsx1tRNpMA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then add a compose for our interpolated value:</p><pre><code>add(
+    outputs('Compose_ValueAtIntegerPosition'),
+    mul(
+        outputs('Compose_FractionalPart'),
+        sub(
+            outputs('Compose_ValueAtNextIntegerPosition'),
+            outputs('Compose_ValueAtIntegerPosition')
+        )
+    )
+)</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/d7cef2d3-6856-4cf5-b971-5d727c30e69a/1_CwHfu_avN4ZSK7ZU6KV5IA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Remember the variable we created at the beginning for this? This is where we need it again, using the outputs of the previous step to set this as our InterpolatedValue variable:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/9bbd41ee-7495-4146-85b9-56de58b4b7df/1_pKPAeuLAeo26P7fWZ6V2Ww-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we need to add a Compose step:</p><pre><code>if(
+    greaterOrEquals(mod(variables('InterpolatedValue'), 1), 0.5),
+    formatNumber(variables('InterpolatedValue'), '0'),
+    if(
+        less(mod(variables('InterpolatedValue'), 1), 0.5),
+        if(
+            equals(mod(variables('InterpolatedValue'), 1), 0),
+            formatNumber(variables('InterpolatedValue'), '0'),
+            add(int(first(split(string(variables('InterpolatedValue')), '.'))), 1)
+        ),
+        first(split(string(variables('InterpolatedValue')), '.'))
+    )
+)</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/c078ec08-aed7-4bce-9fdf-18d2532695c6/1_iZvV0VOHZ5rsCbHZKlbP6A-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we just need to reformat this to be an integer:</p><pre><code>int(outputs('Compose'))</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/6f22998b-8753-48a2-9060-7fca0a281b7b/1_4he5JdCvxeJfQ3omMEH-JQ-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then we use the output of this to set our rightsize variable:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/071fc207-d8ff-4f5d-ae41-62e40d4ee548/1_65AsfH9JitywAkA5PIiekA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Next step is to use HTTP again, this time getting all our open Epics in Jira. It should be a GET with the URL (replace JIRAINSTANCE and PROJECT with your details) of:</p><pre><code>https://JIRAINSTANCE.atlassian.net/rest/api/3/search?jql=project%20%3D%20PROJECT%20AND%20statuscategory%20%21%3D%20Done%20AND%20hierarchyLevel%20%3D%201%0AORDER%20BY%20created%20DESC&amp;fields=id&amp;maxResults=100</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/b4cd6df4-ea5e-4ada-b003-564aa259c98f/1_pDTEYvo-Oi_JdSgcGgRZBg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Again, don’t forget to click ‘Show advanced options’ and add in your access token details.</p><p  >Next we’re going to add a Parse JSON step with the ‘body’ of the previous step and the following schema:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "expand": {
+            "type": "string"
+        },
+        "startAt": {
+            "type": "integer"
+        },
+        "maxResults": {
+            "type": "integer"
+        },
+        "total": {
+            "type": "integer"
+        },
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "expand": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "self": {
+                        "type": "string"
+                    },
+                    "key": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "expand",
+                    "id",
+                    "self",
+                    "key"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/649abdf0-438b-4066-8f2c-6f8862917dd5/1_IiyFrjgGAunr4zRISJ6QBw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then you’re going to add in an Apply to each step, using issues from the previous step. Add in a HTTP step, the first part of the URL (replace JIRAINSTANCE with your details) should be:</p><pre><code>https://JIRAINSTANCE.atlassian.net/rest/api/3/search?jql=%27Parent%27=</code></pre><p  >Add in the id field from our Parse JSON step then follow it with:</p><pre><code>%20AND%20hierarchyLevel=0&amp;maxResults=0</code></pre><p  >Which looks like so:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/817eb0b9-542b-40c2-aaf0-3fa95b5b7d24/1_IgOKP6YGZAXKgpVezpUXng-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >You should know by now what to do with your access token details ;)</p><p  >Add a Parse JSON with body of the previous step and the following schema:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "startAt": {
+            "type": "integer"
+        },
+        "maxResults": {
+            "type": "integer"
+        },
+        "total": {
+            "type": "integer"
+        },
+        "issues": {
+            "type": "array"
+        }
+    }
+}</code></pre>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/d544d625-5eb5-470d-bf75-4f3f634bc198/1_K4_abzIaKP9_jfRJ6hctmA-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Then add a <em>Compose</em> step where we’re just going to take the total of the previous step:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/f90b8a89-c289-42ba-9a13-d1028ec8ebd8/1_0JU9-U-cD6npLbPfmcf-Qg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >Finally, we’re going to add a condition. Here we’ll look at each open Epic and see if the child count is less than or equal to our Rightsize variable:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/ca54df8f-ff88-4111-9601-b69472d4581e/1_lxi3nc4U-RVKqTcNvpsF9g-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >If yes, then we add an Edit Issue (V2) step where we add in our Jira instance, the Issue ID (which we get from a previous step) and, crucially, what our customfield is for our ‘right-sized’ value (remember at the beginning when we worked out what this was? If not go back and re-read!). We update this with “No” if it’s greater than the right-size, or “yes” if it is not:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/227ca654-65eb-448a-8f10-5dba6bdf8464/1_GYbxUMSTyr454zZYQQ_Jjw-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >And that’s it — you’re (finally) done!</p><p  >If you run the automation, then it should successfully update your Epics if they are/are not right-sized:</p>
+</div>
+      <img src="https://images.squarespace-cdn.com/content/v1/5a8c5909be42d6edfd6abf71/87ed2187-af3f-43f0-be52-796eb61e2c54/1_ejjJqof7oiRh2rqWvUjdcg-ezgif.com-webp-to-jpg-converter.jpg?format=original" alt=""/>
+<div class="sqs-html-content" >
+  <p  >It’s worth noting that any Epics with 0 child items aren’t updated with yes/no, purely due to this likely being too early on in the process. Saying an Epic with 0 child items is ‘right-sized’ feels wrong to me but you are welcome to amend the flow if you disagree!</p><p  >By implementing continuous right-sizing in Jira using Power Automate, teams can drive faster feedback loops, reduce delivery risks, and improve predictability. Automating the right-sizing check ensures the data remains visible and actionable, empowering teams to stay focused on maintaining manageable work sizes. With this flow in place, you’re not just optimising Epics — you’re fostering a culture of continuous improvement and efficiency.</p>
+</div></div></main><footer class="site-footer"><div class="socials"><a href="https://www.linkedin.com/in/nicolasbrown02/">in</a><a href="https://github.com/nbrown02">GH</a></div></footer></body></html>

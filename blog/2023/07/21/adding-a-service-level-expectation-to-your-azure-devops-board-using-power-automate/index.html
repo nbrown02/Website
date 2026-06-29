@@ -1,0 +1,151 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Adding a Service Level Expectation to your Azure DevOps board using Power Automate | Nicolas Brown</title><link rel="stylesheet" href="../../../../../assets/style.css"></head><body class="plain-page"><header class="site-header"><a class="brand" href="../../../../../index.html">Nicolas Brown</a><nav class="nav"><a href="../../../../../index.html">Home</a><a href="../../../../../about/index.html">About</a><a href="../../../../../tools/index.html">Tools</a><a href="../../../../../speaking/index.html">Speaking</a><a href="../../../../../book/index.html">Books</a><a href="../../../../../blog/index.html">Blog</a><a class="contact-link" href="../../../../../contact/index.html">Contact</a></nav></header><main class="article"><h1>Adding a Service Level Expectation to your Azure DevOps board using Power Automate</h1><div class="date">21 July 2023</div><div class="content"><div class="sqs-html-content" >
+  <p  ><em>The final part in this series of three blogs covering how you can add flow metrics directly into your kanban board in Azure DevOps. This part covers how to add in your Service Level Expectation (SLE). Check out </em><a href="https://medium.com/@nbrown02/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank"><em>part one if you want to add Work Item Age</em></a><em> or </em><a href="https://nbrown02.medium.com/adding-cycle-time-to-your-azure-devops-board-using-power-automate-9e488d24373a" target="_blank"><em>part two for adding Cycle Time</em></a><em>…</em></p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >What is a Service Level Expectation (SLE)?</h1><p  >As per the <a href="https://kanbanguides.org/english/" target="_blank">Kanban Guide</a>:</p><p  ><em>The SLE is a forecast of how long it should take a single work item to flow from started to finished. The SLE itself has two parts: a period of elapsed time and a probability associated with that period (e.g., “85% of work items will be finished in eight days or less”). </em><strong><em>The SLE should be based on historical cycle time, and once calculated, should be visualized on the Kanban board</em></strong><em>. If historical cycle time data does not exist, a best guess will do until there is enough historical data for a proper SLE calculation.</em></p><p  >I’ve highlighted the part that is most relevant for this blog, which is about making this visible on the kanban board. Again, like the previous posts, some assumptions are made as part of this:</p><ul data-rte-list="default"><li><p  >Within Azure DevOps (ADO) you have an <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/inheritance-process-model?view=azure-devops&amp;tabs=agile-process" target="_blank">inherited process template</a> and <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/manage-process?view=azure-devops" target="_blank">access to edit this</a></p></li><li><p  >You know <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&amp;tabs=Windows" target="_blank">how to generate a PAT in ADO</a> and have already done so with full or analytics read access</p></li><li><p  >States and state categories in your process template are <a href="https://learn.microsoft.com/en-us/azure/devops/boards/work-items/workflow-and-state-categories?view=azure-devops&amp;tabs=agile-process" target="_blank">configured correctly</a></p></li><li><p  >You have access to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> (Microsoft’s automation tool)</p></li><li><p  >We are using data (not a best guess) to calculate our SLE and that we have enough data for it</p></li><li><p  >We are calculating the SLE for all items on the kanban board (i.e. not breaking this down by work item type)</p></li><li><p  >We are going to use the 85th percentile cycle time for all items flowing through our board as our SLE</p></li></ul><h1 >Deciding where our SLE will go</h1><p  >The kanban guide is not explicit about where the SLE should go, simply that it should be visualized on the board. Given we are working with ADO, it limits our options in where we can make this visible. For the purpose of this blog, we will focus on how we can add it to the work item form, although the wrap up at the end of this blog will show another way that it can be done…</p><h1 >Adding custom fields for Cycle Time percentiles</h1><p  >Consistent with the previous blogs on <a href="https://nbrown02.medium.com/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank">Work Item Age</a> and <a href="https://nbrown02.medium.com/adding-cycle-time-to-your-azure-devops-board-using-power-automate-9e488d24373a" target="_blank">Cycle Time</a>, we will add a couple of custom fields to our work item form. Keeping with the same theme of focusing on a single work item type, we are again going to use Product Backlog Item as our chosen type.</p><p  >We are going to add two custom fields to the form. ‘Cycle Time 50th’ will be for the 50th percentile of Cycle Time and ‘SLE’ will be the field for the 85th percentile cycle time (our chosen percentile for our SLE). Again make sure both of these are configured as integer type fields:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Now, an optional step here is to hide these fields on the work item form. We can still populate these fields (and make them visible on the board and/or query them) but it just means less ‘distraction’ from an end user perspective:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Now those are done, we can move onto the automation!</p><h1 >Adding the SLE to the work item</h1><p  >We will start by making a slight tweak to our query we created when configuring our <a href="https://nbrown02.medium.com/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank">Work Item Age automation</a>. If you go back to that query, you want to add in to your column options ‘Cycle Time 50th’ and ‘SLE’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >After this we are going to go to Power Automate. There are two options here for the type of automation we choose and how up to date you want your SLE to be. One way is to take the same approach we did for our <a href="https://nbrown02.medium.com/adding-cycle-time-to-your-azure-devops-board-using-power-automate-9e488d24373a" target="_blank">Cycle Time automation</a> and setup an automated cloud flow which would then have the SLE update as and when an item moves to ‘Closed’.</p><p  >The other way (and the way this blog will cover how to do) is to use a scheduled cloud flow like we did for our <a href="https://nbrown02.medium.com/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank">Work Item Age automation</a>:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >However, what we are going to do is set this up to run more than once a day. Mainly because multiple items will (hopefully!) be moving to done during the day and we want our SLE to be as close to real-time as possible. I’ve gone with the following schedule of running every four hours:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Our next step is the same as our Work Item Age one, where we will get our query results:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Again, ensure that you input the relevant Organization Name and Project Name where you have created the query:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Following this we will add a step to <em>Initialize variable</em> (called ‘DateRange’). This is where we are going to dynamically look at the last 12 weeks’ worth of cycle time to calculate our percentiles. The reason why we use 12 weeks is so that we have a good amount of samples in our dataset — feel free to use less or more if you prefer. Our variable is going to be called <em>DateRange</em> of type <em>String</em>, with the following expression:</p><pre><code>formatDateTime(subtractFromTime(utcNow(), 12, 'Week'), 'yyyy-MM-ddTHH:mm:ssZ')</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >The next part is where we are going to do something different than previous. Rather than add a step, we are going to ‘Add a parallel branch’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >The reason why is because we are populating both our 50th percentile AND our SLE (85th percentile) on the work item form, therefore we want them to run in parallel.</p><p  >Under each branch, you are going to add a step to initialize a variable. One should be called CT85 (for the 85th percentile), the other CT50 (for the 50th percentile). Both should be of type ‘Float’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we are going to add an <em>Apply to each</em> step under each branch, populating it with the value from our ‘Get query results’ step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >After this we are going to add a step under each branch to <em>Get work item details</em>. Here we want to make sure our Organization Name and Project Name match what we entered at the beginning and we are going to populate our ‘Work Item Type’ and ‘Work Item Id’ fields as dynamic content from our <em>Get query results</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we are going to add a <em>HTTP</em> step under each branch. This is where we are going to get our cycle time percentile data. Same as before the method should be ‘GET’ and our URL should consist of the first part (same for both):</p><pre><code>https://analytics.dev.azure.com/ORG/PROJECT/_odata/V3.0-preview/WorkItemBoardSnapshot?%20$apply=filter(%20Team/TeamName%20eq%20%27TEAM%20NAME%27%20and%20BoardCategoryReferenceName%20eq%20%27Microsoft.RequirementCategory%27%20and%20DateValue%20ge%20</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  ><strong>Please note —it is essential here that the ORG | PROJECT | TEAM NAME values match your own ADO project, otherwise it will fail.</strong></p><p  >Next it’s the dynamic content of the DateRange variable:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we do something slightly different. On the branch that is the 85th percentile you need to add the following:</p><pre><code>%20)%20/compute(%20percentile_cont(CycleTimeDays,%200.85)%20as%20CT85)%20/groupby(%20(CT85))</code></pre><p  >For the branch that is the 50th percentile you need to add the following:</p><pre><code>%20)%20/compute(%20percentile_cont(CycleTimeDays,%200.5)%20as%20CT50)%20/groupby(%20(CT50))</code></pre><p  >Which should then look like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then click ‘Show advanced options’ for both branches and add in your PAT:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we are going to add in a <em>Parse JSON</em> step. Similar to before, this is where we are going to extract the <em>CycleTimeDays</em> value. For both choose ‘body’ from your previous HTTP step.</p><p  >For your 85th percentile branch your schema should be:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "@@odata.context": {
+            "type": "string"
+        },
+        "value": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "@@odata.id": {},
+                    "CT85": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "@@odata.id",
+                    "CT85"
+                ]
+            }
+        }
+    }
+}</code></pre><p  >For your 50th percentile it should be:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "@@odata.context": {
+            "type": "string"
+        },
+        "value": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "@@odata.id": {},
+                    "CT50": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "@@odata.id",
+                    "CT50"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >For our next step we are going to add an <em>Apply to each</em> for each branch. Before adding a step we need to add a concurrency control, which we do via clicking the three dots next to ‘Apply to each’ and then ‘Settings’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we want to turn Concurrency Control to ‘On’ and set our degree of parallelism to 1:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Please make sure you do this for both branches!</p><p  >After this we can select ‘value’ from our <em>Parse JSON</em> step for our ‘Select an output from previous steps’ field:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we are going to add a step to <em>Set Variable </em>which, for our respective branches, we are using dynamic content to populate the value field<em>:</em></p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next is a <em>Compose</em> step where we will use an expression. For our 85th percentile this should be:</p><pre><code>if(greaterOrEquals(mod(variables('CT85'),1),0.5),formatNumber(variables('CT85'),'0'),if(less(mod(variables('CT85'),1),0.5),if(equals(mod(variables('CT85'),1),0),formatNumber(variables('CT85'),'0'),add(int(first(split(string(variables('CT85')),'.'))),1)),first(split(string(variables('CT85')),'.'))))</code></pre><p  >For our 50th percentile it should be:</p><pre><code>if(greaterOrEquals(mod(variables('CT50'),1),0.5),formatNumber(variables('CT50'),'0'),if(less(mod(variables('CT50'),1),0.5),if(equals(mod(variables('CT50'),1),0),formatNumber(variables('CT50'),'0'),add(int(first(split(string(variables('CT50')),'.'))),1)),first(split(string(variables('CT50')),'.'))))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Final step for each branch is to <em>Update a work item</em>. This is where we are going to be adding the percentiles to the respective work item. Here we need to make sure the organization and project match what we entered previously. Our ‘Id’ and ‘Work item type’ should be dynamic content from our previous steps. Finally our respective fields for the SLE or 50th percentile should match the names we gave them at the very beginning and the values should be the ‘outputs’ of our previous <em>Compose</em> steps.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >That’s the automation complete! Make sure all your step names match the above images and hit ‘Test’ to give it a test run:</p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Making this visible on the kanban board</h1><p  >The final step is to make these fields visible on the kanban board. To do this we need to go into our board settings and find the respective work item type. Under ‘Additional fields’ you’ll want to add Cycle Time 50th and SLE:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Now, we can see our Work Item Age and compares this to our 50th percentile for our cycle time as well as, more importantly, our SLE:</p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Taking this further…and alternative ways to display SLE</h1><p  >Unfortunately we cannot configure styles within the Kanban board if one field is greater than another. For example we ideally want a rule whereby if <em>Work Item Age</em> ≥ <em>Cycle Time</em> 50 then turn that item yellow and/or if <em>Work Item Age</em> ≥ <em>SLE</em> then turn that item orange. ADO (currently) doesn’t let you do that, instead allowing just the entry of a value:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >The best we can do here for now is just to use that 50th percentile and SLE information to add styling rules for at risk and/or breached items:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >I mentioned previously about an alternative approach to making your SLE visible on your board. Another way, which may be a more controversial approach (as it directly impacts the design of the teams workflow), is to have a placeholder item on the board that will always display the current SLE. To do this, create any work item type for your board and give it any name you like (don’t worry, we are going to overwrite this). Configure a Swimlane for the top of your board called <em>Service Level Expectation (SLE)</em> and place this item in one of your in progress columns. Here is an example:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Following slightly different steps (not detailed in this post but can be shared if it’s of interest) we can do something like the following:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >With the result being an item on the board that looks like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Similar to previous posts, having the SLE as a field on the card allows you to better highlight those items that may be close to exceeding this value.</p><p  >Of course you could leverage the same styling rules approach as previously shown:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >You can also take this further and define SLE’s for different work item types. For example if I wanted this to be dynamic for different work item types, I would adjust my HTTP action like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Hopefully this series of blogs have been helpful in making this information around the measures defined in the kanban guide more accessible for you and your teams. Don’t forgot to add a comment below for any feedback :)</p>
+</div></div></main><footer class="site-footer"><div class="socials"><a href="https://www.linkedin.com/in/nicolasbrown02/">in</a><a href="https://github.com/nbrown02">GH</a></div></footer></body></html>

@@ -1,0 +1,117 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Adding Cycle Time to your Azure DevOps board using Power Automate | Nicolas Brown</title><link rel="stylesheet" href="../../../../../assets/style.css"></head><body class="plain-page"><header class="site-header"><a class="brand" href="../../../../../index.html">Nicolas Brown</a><nav class="nav"><a href="../../../../../index.html">Home</a><a href="../../../../../about/index.html">About</a><a href="../../../../../tools/index.html">Tools</a><a href="../../../../../speaking/index.html">Speaking</a><a href="../../../../../book/index.html">Books</a><a href="../../../../../blog/index.html">Blog</a><a class="contact-link" href="../../../../../contact/index.html">Contact</a></nav></header><main class="article"><h1>Adding Cycle Time to your Azure DevOps board using Power Automate</h1><div class="date">14 July 2023</div><div class="content"><div class="sqs-html-content" >
+  <p  ><em>The second in a series of three blogs covering how you can add flow metrics directly into your kanban board in Azure DevOps. </em><a href="https://medium.com/@nbrown02/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank"><em>Part one covered how to add Work Item Age</em></a><em>. Part two (this blog) will cover adding Cycle Time and part three will show how to add in your Service Level Expectation…</em></p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >What do we we mean by Cycle Time?</h1><p  >As per the <a href="https://kanbanguides.org/english/" target="_blank">Kanban Guide</a>:</p><p  ><em>Cycle Time — the amount of elapsed time between when a work item started and when a work item finished.</em></p><p  >The challenge we have in Azure DevOps is that despite information around cycle time being available to populate widgets such as the cycle time chart, it requires again moving away from the board to view on a separate page.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  ><a href="https://learn.microsoft.com/en-us/azure/devops/report/dashboards/analytics-widgets?view=azure-devops" target="_blank">Analytics widgets — Azure DevOps | Microsoft Learn</a></p><p  >What would be even better for teams would be getting that information real time, ideally as soon as possible after an item moves to done. Here’s how this can be made possible…</p><h1 >Prerequisites</h1><p  >Similar to the last post, here are some assumptions made in this guidance:</p><ul data-rte-list="default"><li><p  >Within Azure DevOps (ADO) you have an <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/inheritance-process-model?view=azure-devops&amp;tabs=agile-process" target="_blank">inherited process template</a> and <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/manage-process?view=azure-devops" target="_blank">access to edit this</a></p></li><li><p  >You know <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&amp;tabs=Windows" target="_blank">how to generate a Personal Access Token (PAT) in ADO</a> and have already done so with full or analytics read access</p></li><li><p  >States and state categories in your process template are <a href="https://learn.microsoft.com/en-us/azure/devops/boards/work-items/workflow-and-state-categories?view=azure-devops&amp;tabs=agile-process" target="_blank">configured correctly</a></p></li><li><p  >You have access to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a></p></li></ul><p  >With all those in place — let’s get started!</p><h1 >Adding a ‘Cycle Time’ field to ADO</h1><p  >We need to add a new field into our process template in ADO called <em>Cycle Time</em>. You need also to know the respective work item type(s) you want to do this for. Again, for the purpose of simplicity in this blog we will stick to <em>Product Backlog Item (PBI)</em> as the work item type we will do this for and be using the inheritance of the Scrum process template. Please note, if you are wanting to do this for multiple work item types you will have to repeat this process.</p><ul data-rte-list="default"><li><p  >Find the PBI work item type in your inherited process work items list</p></li><li><p  >Click into it and click ‘New field’</p></li><li><p  >Add the <em>Cycle Time </em>field — ensure you specify it as an ‘integer’</p></li></ul>
+</div>
+<div class="sqs-html-content" >
+  <p  >If you have followed <a href="https://medium.com/@nbrown02/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank">the previous post</a> and have added a custom <em>Work Item Age</em> field, you’ll want to also implement a <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/custom-rules?view=azure-devops" target="_blank">work item rule</a> here. This is so that when items that were in progress move to done, we clear the <em>Work Item Age</em> field. You can do this like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Now, before automating, let’s briefly recap on how cycle time is calculated…</p><h1 >Understanding how Cycle Time is calculated</h1><p  >From <a href="https://learn.microsoft.com/en-us/azure/devops/report/dashboards/cycle-time-and-lead-time?view=azure-devops" target="_blank">Microsoft’s own documentation</a>, we can see that <em>Cycle Time</em> is calculated from when an item first enters an ‘In Progress’ state category to entering a ‘Completed’ state category.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Source: </p><p  ><a href="https://learn.microsoft.com/en-us/azure/devops/report/dashboards/cycle-time-and-lead-time?view=azure-devops" target="_blank">Cycle Time and Lead Time control charts — Azure DevOps Services | Microsoft Learn</a></p><p  >Fortunately for us, when this happens, Microsoft auto-calculates this cycle time, storing it in a column in the database/analytics views known as <em>CycleTimeDays</em>. As mentioned previously, is not the intent of this blog to get into a debate about adding +1 days to an item as there are no instances where an item has taken 0 days to complete.</p><p  >Ultimately, calculating cycle time this way still aligns with the definition as set out in the <a href="https://kanbanguides.org/english/#elementor-toc__heading-anchor-10" target="_blank">kanban guide</a> as it is still “the amount of elapsed time between when a work item started and when a work item finished.”</p><p  >Time to move on to automation…</p><h1 >Automating the input of Cycle Time on items</h1><p  >Our automation looks slightly different this time as, rather than a scheduled automation, we want this to run any time an item moves to done. Therefore we need to pick an <em>Automated cloud flow</em> in Power Automate:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We are going to call it<em> Cycle Time</em> and our trigger is going to be <em>When a work item is closed:</em></p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We will add in our ‘Organization Name’, ‘Project Name’ and ‘Type’. Again, for this instance we are going to be consistent and just use the Product Backlog Item (PBI) type.</p><p  ><strong>Please note, if you are wanting to do this for multiple work item types you will have to repeat the process of adding this field for each work item type.</strong></p><p  >The closed state field should be auto-populated:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we need to add a step for a <em>Delay</em>:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >The reason for this is sometimes the calculating of cycle time by Microsoft can be a little slow. All we are going to add in here is a 30 second delay to give enough time for the<em> CycleTimeDays</em> column to be populated:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Following this, we are going to add a<em> Get work item details</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Here we want to make sure our organization, project and work item type are consistent with our first step. We also want to add in the ‘Id’ field from our first action when a work item is closed:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >After this, we want to add in a <em>HTTP</em> step which is where we will pull in the <em>CycleTimeDays</em> for the completed item:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >You’ll need to set the method as ‘GET’ and add in the the URL. The first part of the URL (replace ORG and PROJECT with your details) should be:</p><pre><code>https://analytics.dev.azure.com/ORG/PROJECT/_odata/v3.0-preview/WorkItems?$filter=WorkItemId%20eq%20</code></pre><p  >Add in the dynamic content of ‘Id’ from our <em>Get work item details</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >After the Id, add in:</p><pre><code>&amp;$select=CycleTimeDays</code></pre><p  >Which should then look like:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Again, ensure you have added your PAT details in the advanced options:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >PAT blurred for obvious reasons!</p><p  >Next we are going to add a <em>Parse JSON</em> step, where we are going to extract the <em>CycleTimeDays</em> value:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >For content you’ll want to choose ‘Body’ and add a schema like so:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "@@odata.context": {
+            "type": "string"
+        },
+        "value": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "CycleTimeDays": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "CycleTimeDays"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we need to add an <em>Initialize variable </em>step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >This will serve the purpose of temporarily storing our cycle time before we write it back to the respective work item. Add in the following:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  ><em>Apply to each</em> is the next step to add in:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Here we will use the ‘value’ from our Parse JSON action as our output from previous steps:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’ll need to add in a <em>Set variable</em> step which is essentially where we are going to pass through our <em>CycleTimeDays</em> in the value field:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we need to add a <em>Compose</em> step for rounding our Cycle Time:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Here we need to set an expression of:</p><pre><code>if(greaterOrEquals(mod(variables('CycleTimeDays'),1),0.5),formatNumber(variables('CycleTimeDays'),'0'),if(less(mod(variables('CycleTimeDays'),1),0.5),if(equals(mod(variables('CycleTimeDays'),1),0),formatNumber(variables('CycleTimeDays'),'0'),add(int(first(split(string(variables('CycleTimeDays')),'.'))),1)),first(split(string(variables('CycleTimeDays')),'.'))))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >The final action is to write this back to Azure DevOps. Here we want to add a step to <em>Update a work item:</em></p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Ensure the organization, project and work item type all match our previous steps. We want to choose ‘Id’ from our Get Work Item Details action previously. Click Advanced Options and ensure that Cycle Time is populated with the outputs of our previous step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then hit save and the flow is created!</p><p  >To test if it works, you will need to create a dummy item and move it to your closed state on your board to see if the flow works. With a successful run looking like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Making this visible on the kanban board</h1><p  >The final step is to make this visible on the kanban board. To do this we need to go into our board settings and find the respective work item type. Under ‘Additional fields’ you’ll want to add Cycle Time:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then, when an item moves to done and the flow runs, you will then see the cycle time for your completed items:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  ><strong>Please note — this will not retrospectively update for items that were in a Closed/Done state before this automation was setup</strong>. You could however combine the logic of this and the previous blog post to do that :)</p><h1 >Ways you could take it further</h1><p  >Now, teams who are using the board as part of their daily sync/scrum also have the cycle time for completed items visible on the cards themselves. This provides insights around how long items actually took. You could then take this further, for example adding styling rules for any items that took longer than an agreed duration (or a Service Level Expectation — SLE).</p><p  >This team may choose to do that for anything that took over 10 days:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Which could be the basis for discussing these orange items in a retrospective.</p><p  >Now you have two of the four flow metrics visible for all in progress and completed items on your board, which is hopefully this is a useful next step for increasing awareness around the flow of work :)</p><p  ><a href="https://nbrown02.medium.com/adding-a-service-level-expectation-to-your-azure-devops-board-using-power-automate-dbdd8eff3f4b" target="_blank">Check out part three</a> which covers how to automate the adding of a Service Level Expectation (SLE) to the kanban board…</p>
+</div></div></main><footer class="site-footer"><div class="socials"><a href="https://www.linkedin.com/in/nicolasbrown02/">in</a><a href="https://github.com/nbrown02">GH</a></div></footer></body></html>

@@ -1,0 +1,128 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Adding Work Item Age to your Jira issues using Power Automate | Nicolas Brown</title><link rel="stylesheet" href="../../../../../assets/style.css"></head><body class="plain-page"><header class="site-header"><a class="brand" href="../../../../../index.html">Nicolas Brown</a><nav class="nav"><a href="../../../../../index.html">Home</a><a href="../../../../../about/index.html">About</a><a href="../../../../../tools/index.html">Tools</a><a href="../../../../../speaking/index.html">Speaking</a><a href="../../../../../book/index.html">Books</a><a href="../../../../../blog/index.html">Blog</a><a class="contact-link" href="../../../../../contact/index.html">Contact</a></nav></header><main class="article"><h1>Adding Work Item Age to your Jira issues using Power Automate</h1><div class="date">18 September 2024</div><div class="content"><div class="sqs-html-content" >
+  <p  ><em>A guide on how you can automate adding the flow metric of Work Item Age directly into your issues in Jira using Power Automate…</em></p><h3 >Context</h3><p  >As teams increase their curiosity around their flow of work, making this information as readily available to them is paramount. <a href="https://www.scrum.org/resources/blog/4-key-flow-metrics-and-how-use-them-scrums-events" target="_blank">Flow metrics</a> are the clear go-to as they provide great insights around predictability, responsiveness and just how sustainable a pace a team is working at. There is however, a challenge with getting teams to frequently use them. Whilst using them in a retrospective (say looking at outliers on a cycle time scatter plot) is a common practice, it is a lot harder trying to embed this into their every day conversations. There is no doubt these charts add great value but, plenty of teams forget about them in their daily sync/scrums as they will (more often than not) be focused on sharing their Kanban board. They will focus on discussing the items on the board, rather than using a flow metrics chart or dashboard, when it comes to planning for their day. As an Agile Coach, no matter how often I show it and stress the importance of it, plenty of teams that I work with still forget about the “secret sauce” of <em>Work Item Age</em> in their daily sync/scrum as it sits on a different URL/tool.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Example Work Item Age chart</p><p  >This got me thinking about how to might overcome this and remove a ‘barrier to entry’ around flow. Thankfully, automation tools can help. We can use tools like <a href="https://powerautomate.microsoft.com/en-gb/" target="_blank">Power Automate</a>, combined with Jira’s REST API, to help improve the way teams work through making flow data visible…</p><h3 >Prerequisites</h3><p  >There are a few assumptions made in this series of posts:</p><ul data-rte-list="default"><li><p  >Within Jira you have access to (or know someone who has access to) add custom fields to a project</p></li><li><p  >You know <a href="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/" target="_blank">how to create (and have created) an API token in Jira</a></p></li><li><p  >Statuses/status categories in your Jira project are <a href="https://support.atlassian.com/jira-work-management/docs/workflows-and-statuses-for-the-board/" target="_blank">configured correctly</a></p></li><li><p  >You have access to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> and can create premium flows</p></li></ul><p  >With all those in place — let’s get started!</p><h1 >Adding a Work Item Age field in Jira</h1><p  >The first thing we need to do is add a custom field for Work Item Age. To do this, navigate to your Jira project you want to add this in. Click on ‘Project settings’ then choose a respective issue type (in this case we’re just choosing Story to keep it simple). Choose ‘Number’ and give the field the name of Work Item Age (Days) and add the description of what this is:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Once done, click ‘Save Changes’. If you want to add it for any other issue types, be sure to do so.</p><h1 >Finding out the name of this field</h1><p  >This is one of the trickier parts of this setup. When using the Jira REST API, custom fields do not give any indication as to what they refer to in their naming, simply going by ‘CustomField_12345’. So we have to figure out what our custom field for work item age is.</p><p  >To do so, (edit: after posting, <a href="https://www.linkedin.com/in/caidyrn/" target="_blank">Caidyrn Roder</a> pointed me to <a href="https://confluence.atlassian.com/jirakb/how-to-find-id-for-custom-field-s-744522503.html" target="_blank">this article</a>) populate a dummy item with a unique work item age, like I have done here with the value 1111:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next, use the API to query that specific item and do a CTRL + F till you find that value, it will look similar to the below, just change the parts I’ve indicated you need to replace:</p><pre><code>https://[ReplaceWithYourJiraInstanceName].atlassian.net/rest/api/2/search?jql=key%20%3D%20[ReplaceWithTheKeyOfTheItem]
+My example is:
+https://nickbtest.atlassian.net/rest/api/2/search?jql=key%20%3D%20ZZZSYN-38</code></pre><p  >Which we can do a quick CTRL + F for this value:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We can see that our Work Item Age field is called — <em>customfield_12259. </em>This will be different for you in your Jira instance! Once you have it, note it down as we’re going to need it later…</p><h1 >Understanding how Work Item Age is to be calculated</h1><p  >When it comes to Jira, you have statuses that are respective to a particular workflow. These will be statuses items move through and also map to columns on your board. <em>Status categories</em> are something not many folks are aware of. These are essentially ‘containers’ for where statuses sit. Thankfully, there are only three — <em>To do</em>, <em>In Progress</em> and <em>Done</em>. These are visible when adding statuses in your workflow:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >An easier to understand visual representation of it on a kanban board would be:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >What’s also helpful is that Jira doesn’t just create a timestamp when an item changes <em>Status</em>, it also does it when it changes <em>Status Category</em>. Therefore we can use this to relatively easily figure out our Work Item Age. <a href="https://kanbanguides.org/html-kanban-guide/#KanbanMeasures" target="_blank">Work Item Age is ‘the amount of elapsed time between when a work item <strong>started</strong> and the current time’.</a> We can think of ‘started’ as being the equivalent to when an item moved ‘In Progress’ — we can thus use our <em>StatusCategoryChangedDate </em>as our start time, the key thing that we need to calculate Work Item Age:</p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Automating Work Item Age</h1><p  >First we need to setup the schedule for our flow to run. To do this you would navigate to Power Automate and create a ‘Scheduled cloud flow’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >The timing of this is entirely up to you but my tip would be to do be before the daily stand-up/sync. Once you’re happy with it give it a name and click ‘Create’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Following this we are going to add a step to <em>Initialize variable</em> — this is essentially where we will ‘store’ what our Issue Key is in a format that Power Automate needs it to be in (an array) with a value of ‘[]’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We are then going to add the <em>Initialize variable </em>step again— this time so we ‘store’ what our Work Item Age is which, to start with, will be an integer with a value of 0:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >After this, we’re going to add a <em>HTTP</em> step. This is where we are going to GET all our ‘In Progress’ issues and the date they first went ‘In Progress’, referred to in the API as the <em>StatusCategoryChangedDate</em>. You’ll also notice here I am filtering on the hierarchy level of story (hierarchy level = 0 in JQL world) — this is just for simplicity reasons and can be removed if you want to do this at multiple backlog hierarchy levels:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >https://[ReplaceWithYourJiraInstanceName].atlassian.net/rest/api/2/search?jql=project%20%3D%20[ReplaceWithYourJiraProjectName]%20AND%20statuscategory%20%3D%20%27In%20Progress%27%20AND%20hierarchyLevel%20%3D%20%270%27&amp;fields=statuscategorychangedate,key  My example: https://n123b.atlassian.net/rest/api/2/search?jql=project%20%3D%20ZZZSYN%20AND%20statuscategory%20%3D%20%27In%20Progress%27%20AND%20hierarchyLevel%20%3D%20%270%27&amp;fields=statuscategorychangedate,key</p><p  >You will then need to click ‘Show advanced options’ to add in your API token details. Set the authentication to ‘Basic’, add in the username of the email address associated with your Jira instance and paste your API token into the password field:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we will add a <em>PARSE JSON</em> step to format the response. Choose ‘body’ as the content and add a schema like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <pre><code>{
+    "type": "object",
+    "properties": {
+        "expand": {
+            "type": "string"
+        },
+        "startAt": {
+            "type": "integer"
+        },
+        "maxResults": {
+            "type": "integer"
+        },
+        "total": {
+            "type": "integer"
+        },
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "expand": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "self": {
+                        "type": "string"
+                    },
+                    "key": {
+                        "type": "string"
+                    },
+                    "fields": {
+                        "type": "object",
+                        "properties": {
+                            "statuscategorychangedate": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "expand",
+                    "id",
+                    "self",
+                    "key",
+                    "fields"
+                ]
+            }
+        }
+    }
+}</code></pre><p  >Then we need to add an Apply to each step and select the ‘issues’ value from our previous <em>PARSE JSON</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add a <em>Compose</em> action — this is where we’ll calculate the Work Item Age based on todays date and the<em> StatusCategoryChangedDate</em>, which is done as an expression:</p>
+</div>
+<div class="sqs-html-content" >
+  <pre><code>div(sub(ticks(utcNow()), ticks(items('Apply_to_each')?['fields']?['statuscategorychangedate'])), 864000000000)</code></pre><p  >Next we’ll add a <em>Set Variable</em> action to use the dynamic content outputs from the previous step for our ItemAge variable:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then add an <em>Append to array variable</em> action where we’re going to append ‘key’ to our ‘KeysArray’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’ll add another <em>Compose</em> action where we’ll include our new KeysArray:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add another <em>Apply to each </em>step with the outputs of our second compose as the starting point:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to choose the <em>Jira Edit Issue (V2)</em> action which we will populate with our Jira Instance (choose ‘Custom’ then just copy/paste it in), ‘key’ from our apply to each step in the Issue ID or Key field and then finally in our ‘fields’ we will add the following:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Where<em> ItemAge</em> is your variable from the previous steps.</p><p  >Once that is done, your flow is ready — click ‘Save’ and give it a test. You will be able to see in the flow run history if it has successfully completed.</p><p  >Then you should have the Work Item Age visible on the issue page:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Depending on your Jira setup, you could then configure the kanban board to also display this:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Finally, we want to make sure that the work item age field is cleared any time an item moves to ‘Done’ (or whatever your done statuses are). To do this go to the Project Settings &gt; Automation then setup a rule like so:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >That way Work Item Age will no longer be populated for completed items, as they are no longer ‘in progress’.</p><p  >Hopefully this is a useful starting point for increasing awareness of Work Item Age on issues/the Jira board for your team :)</p>
+</div></div></main><footer class="site-footer"><div class="socials"><a href="https://www.linkedin.com/in/nicolasbrown02/">in</a><a href="https://github.com/nbrown02">GH</a></div></footer></body></html>

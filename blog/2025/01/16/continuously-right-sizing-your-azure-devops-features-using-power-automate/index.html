@@ -1,0 +1,249 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Continuously right-sizing your Azure DevOps Features using Power Automate | Nicolas Brown</title><link rel="stylesheet" href="../../../../../assets/style.css"></head><body class="plain-page"><header class="site-header"><a class="brand" href="../../../../../index.html">Nicolas Brown</a><nav class="nav"><a href="../../../../../index.html">Home</a><a href="../../../../../about/index.html">About</a><a href="../../../../../tools/index.html">Tools</a><a href="../../../../../speaking/index.html">Speaking</a><a href="../../../../../book/index.html">Books</a><a href="../../../../../blog/index.html">Blog</a><a class="contact-link" href="../../../../../contact/index.html">Contact</a></nav></header><main class="article"><h1>Continuously right-sizing your Azure DevOps Features using Power Automate</h1><div class="date">16 January 2025</div><div class="content"><div class="sqs-html-content" >
+  <p  ><em>A guide to continuously right-sizing Azure DevOps (ADO) Features using OData queries and Power Automate…</em></p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Context</h1><p  >Right-sizing is a flow management practice that ensures work items remain within a manageable size. Most teams apply this at the User Story or Product Backlog Item (PBI) level, using historical Cycle Time data to determine the 85th percentile as their right-size, meaning 85% of items are completed within a set number of days. This is often referred to as a Service Level Expectation (SLE).</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >“85% of the time we complete items in 7 days or less”</p><p  >In combination with this, teams use Work Item Age, the amount of elapsed time in calendar days since a work item started, to proactively manage the flow of work that is “in-progress”. Previously I have shared how you can automate the <a href="https://nbrown02.medium.com/adding-cycle-time-to-your-azure-devops-board-using-power-automate-9e488d24373a" target="_blank">Cycle Time</a>, <a href="https://nbrown02.medium.com/adding-a-service-level-expectation-to-your-azure-devops-board-using-power-automate-dbdd8eff3f4b" target="_blank">SLE</a> and <a href="https://nbrown02.medium.com/adding-work-item-age-to-your-azure-devops-board-using-power-automate-5b645d02f9ee" target="_blank">Work Item Age</a> to your ADO boards.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Right-sizing isn’t limited to Stories or PBIs — it also applies to Features (and Epics!), which group multiple Stories or PBIs. For Features, right-sizing means keeping the child item count below a manageable limit.</p><p  >To understand what this right-size is, we choose a selected date range, plotting our completed Features against the date they were completed and the number of child items they had. We can then use percentiles to derive what our ‘right-size’ is (again typically taking the 85th percentile):</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Good teams will then use this data to proactively check their current ‘open’ Features (those in progress/yet to start) and see if those Features are right-sized:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Right-sizing brings many benefits for teams as it means faster feedback, reduced risk and improved predictability. The challenge is that this data/information will almost always live in a different location to the teams’ work. In order for practices such as right-sizing to become adopted by more teams it needs to be simple and visible every day so that teams are informed around their slicing efforts and growth of feature size.</p><p  >Thankfully, we can leverage tools like Power Automate, combined with ADO’s OData queries to make this information readily accessible to all teams…</p><h1 >Prerequisites</h1><p  >This guide assumes the following prerequisites:</p><ul data-rte-list="default"><li><p  >You have an <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/inheritance-process-model?view=azure-devops&amp;tabs=agile-process" target="_blank">inherited process template</a> in ADO and <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/manage-process?view=azure-devops" target="_blank">access to edit this</a></p></li><li><p  >You know <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&amp;tabs=Windows" target="_blank">how to generate a Personal Access Token (PAT)</a></p></li><li><p  >States and state categories in your process template are <a href="https://learn.microsoft.com/en-us/azure/devops/boards/work-items/workflow-and-state-categories?view=azure-devops&amp;tabs=agile-process" target="_blank">configured correctly</a></p></li><li><p  >Features are owned by a single ‘team’ — rather than shared across teams</p></li><li><p  >Features regularly flow to ‘done’ — rather than remaining open forever</p></li><li><p  >You have access to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> and can create premium flows</p></li></ul><p  >With all those in place — let’s get started!</p><h1 >Adding a custom field for if a Feature is right-sized is not</h1><p  >We first need to add a new field into our process template in ADO called <em>Rightsized</em>. As we are focusing on right-sizing of Features, for the purpose of simplicity in this blog we will stick to <em>Feature</em> as the work item type we will set this up for and be using an inheritance of the <a href="https://learn.microsoft.com/en-us/azure/devops/boards/work-items/guidance/scrum-process?view=azure-devops" target="_blank">Scrum process template</a>.</p><p  ><strong>Please note, if you are wanting to do this for multiple work item types you will have to repeat the process of adding this field for each work item type.</strong></p><ul data-rte-list="default"><li><p  >Find the Feature type in your inherited process template work items list</p></li><li><p  >Click into it and click ‘new field’</p></li><li><p  >Add the <em>Rightsized</em> field — ensuring you specify it as picklist type field with two options, “Yes” or “No”</p></li></ul>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Understanding our Feature right-size</h1><p  >As mentioned earlier in the blog, we plot our completed Features over a given time period (in this case 12 weeks) against the date they were completed on and the number of child items those Features had. We can then draw percentiles against our data to understand our ‘right-size’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >If you’re wondering where the tools are to do this, I have a <a href="https://github.com/nbrown02/Capacity-Planning-Feature-Monte-Carlo" target="_blank">free template for Power BI you can download and connect to/visualise your ADO data</a>.</p><p  >For the purpose of simplicity, in this blog we’re going to choose our 85th percentile as our right-size value so, <strong>for this team, they have a right-size of 14 child items or less.</strong></p><h1 >Automating our right-size check</h1><p  >Start by creating two ADO queries for automation. The first will retrieve completed Features within a specified time range. A 12-week period (roughly a quarter) works well as a baseline but can be adjusted based on your planning cadence. In this example, we’re querying any Features that were ‘Completed’ in the last 12 weeks, that are owned by a particular team (in this example they are under a given Area Path):</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Save that query with a memorable name (I went with ‘Rightsizing Part 1’) as we’ll need it later.</p><p  >Then we’re going to create a second query for all our ‘open’ Features. Here you’re going to do a ‘Not In’ for your completed/removed states and those that are owned by this same team (again here I’ll be using Area Path):</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Make sure ‘rightsized’ is added as a column option and save that query with a memorable name (I went with ‘Rightsizing Part 2’) as we’re going to need it later.</p><p  >Next we go to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> and we create a <em>Scheduled cloud flow. </em>Call this whatever you want but we want this to run every day at a time that makes sense (probably before people start work). Once you’re happy with the time click create:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we need to click ‘+ new step’ and add an action to <em>Get query results</em> from the first query we just set up. ensuring that we input the relevant ‘Organization Name’ and ‘Project Name’ where we created the query:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Following this we are going to add a step to <em>Initialize variable</em> — this is essentially where we will ‘store’ what our Rightsize is which, to start with, will be an Integer with a value of 0:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We’re going to repeat this step a few more times, as we’re <em>Initialize variable</em> for ranking Features (as a ‘float’ type) by their child item count:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we will <em>Initialize Variable</em> to flatten our array value, which we’re going to need towards the end of the flow to get our data in the format we need it to be in to do the necessary calculations:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Our final<em> Initialize Variable</em> will be for our Interpolated Value, which is a ‘float’ value we’re going to need when it comes to calculating the percentile for our right-sizing:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we are going to add an <em>Apply to each</em> step where we’ll select the ‘value’ from our ‘Get query results’ step as the starting point:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to choose a HTTP step. You’ll need to set the method as ‘GET’ and add in the the URL. The first part of the URL (replace ORG and PROJECT with your details) should be:</p><pre><code>https://analytics.dev.azure.com/ORG/PROJECT/_odata/v3.0-preview/WorkItems?%20$filter=WorkItemId%20eq%20</code></pre><p  >Add in the dynamic content of ‘Id’ from our Get work item details step, then add in:</p><pre><code>%20&amp;$select=WorkItemID&amp;$expand=Descendants(%20$apply=filter(WorkItemType%20ne%20%27Test%20Case%27%20and%20StateCategory%20eq%20%27Completed%27%20and%20WorkItemType%20ne%20%27Task%27%20and%20WorkItemType%20ne%20%27Test%20Plan%27%20and%20WorkItemType%20ne%20%27Shared%20Parameter%27%20and%20WorkItemType%20ne%20%27Shared%20Steps%27%20and%20WorkItemType%20ne%20%27Test%20Suite%27%20and%20WorkItemType%20ne%20%27Impediment%27%20)%20/groupby((Count),%20aggregate($count%20as%20DescendantCount))%20)</code></pre><p  >Which should look like:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Click ‘Show advanced options’ and add your PAT details — Set authentication to ‘Basic,’ enter ‘dummy’ as the username, and paste your PAT as the password:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >PAT blurred for obvious reasons!</p><p  >Then we need to add in a <em>Parse JSON</em> step. This is where we are essentially going to extract our count of child items from our completed Features. Choose ‘body’ as the content and add a schema like so:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "@@odata.context": {
+            "type": "string"
+        },
+        "vsts.warnings@odata.type": {
+            "type": "string"
+        },
+        "@@vsts.warnings": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "value": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "WorkItemId": {
+                        "type": "integer"
+                    },
+                    "Descendants": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "@@odata.id": {},
+                                "Count": {
+                                    "type": "integer"
+                                },
+                                "DescendantCount": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "@@odata.id",
+                                "Count",
+                                "DescendantCount"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "WorkItemId",
+                    "Descendants"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >This is where it gets a bit more complicated, we’re then going to add an <em>Apply to each</em> step, using the value from our previous step. Then do ANOTHER <em>Apply to each </em>where we’re going to take the descendant count for each Feature and append it to our FlattenedArray variable:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to go outside our Apply to each loop and add a <em>Compose</em> step to sort our child item counts:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add a Set Variable step where we’re going to set our Rank variable using the following expression:</p><pre><code>float(add(mul(0.85, sub(length(outputs('SortedCounts')), 1)), 1))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we’re going to do the part where we work out our 85th percentile. To start with, we first need to figure out the integer part. Add a compose action with the following expression:</p><pre><code>int(substring(string(variables('rank')), 0, indexOf(string(variables('rank')), '.')))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then add another compose part for the fractional part, using the expression of:</p><pre><code>sub(float(variables('rank')), int(substring(string(variables('rank')), 0, indexOf(string(variables('rank')), '.'))))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add a Compose step for formatting this to be one decimal place, we do using:</p><pre><code>formatNumber(outputs('Compose_FractionalPart'), 'N1')</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to initialize another variable, which we do simply to “re-sort” our array (I found in testing this was needed). This will have a value of:</p><pre><code>sort(variables('FlattenedArray'))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to set our FlattenedArray variable to be the output of this step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we need to calculate the value at our Integer position:</p><pre><code>variables('FlattenedArray')[sub(int(outputs('Compose_IntegerPart')), 1)]</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then do the same again for the value at the next integer position:</p><pre><code>variables('FlattenedArray')[outputs('Compose_IntegerPart')]</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then add a compose for our interpolated value:</p><pre><code>add(
+    outputs('Compose_ValueAtIntegerPosition'),
+    mul(
+        outputs('Compose_FractionalPart'),
+        sub(
+            outputs('Compose_ValueAtNextIntegerPosition'),
+            outputs('Compose_ValueAtIntegerPosition')
+        )
+    )
+)</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Remember the variable we created at the beginning for this? This is where we need it again, using the outputs of the previous step to set this as our InterpolatedValue variable:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we need to add a Compose step:</p><pre><code>if(
+    greaterOrEquals(mod(variables('InterpolatedValue'), 1), 0.5),
+    formatNumber(variables('InterpolatedValue'), '0'),
+    if(
+        less(mod(variables('InterpolatedValue'), 1), 0.5),
+        if(
+            equals(mod(variables('InterpolatedValue'), 1), 0),
+            formatNumber(variables('InterpolatedValue'), '0'),
+            add(int(first(split(string(variables('InterpolatedValue')), '.'))), 1)
+        ),
+        first(split(string(variables('InterpolatedValue')), '.'))
+    )
+)</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we just need to reformat this to be an integer:</p><pre><code>int(outputs('Compose'))</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we use the output of this to set our rightsize variable:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next step is to use ADO again, get query results of our second query we created for all our ‘open’ features:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’re going to add an Apply to each step using the value from the previous step. Then a HTTP step with the method as ‘GET’ and add in the the URL. This URL is different than the one above! The first part of the URL (replace ORG and PROJECT with your details) should be:</p><pre><code>https://analytics.dev.azure.com/ORG/PROJECT/_odata/v3.0-preview/WorkItems?%20$filter=WorkItemId%20eq%20</code></pre><p  >Add in the dynamic content of ‘Id’ from our Get work item details step, then after the Id, add in:</p><pre><code>%20&amp;$select=WorkItemID&amp;$expand=Descendants(%20$apply=filter(WorkItemType%20ne%20%27Test%20Case%27%20and%20State%20ne%20%27Removed%27%20and%20WorkItemType%20ne%20%27Task%27%20and%20WorkItemType%20ne%20%27Test%20Plan%27%20and%20WorkItemType%20ne%20%27Shared%20Parameter%27%20and%20WorkItemType%20ne%20%27Shared%20Steps%27%20and%20WorkItemType%20ne%20%27Test%20Suite%27%20and%20WorkItemType%20ne%20%27Impediment%27%20)%20/groupby((Count),%20aggregate($count%20as%20DescendantCount))%20)</code></pre><p  >Which should look like:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Make sure again to click ‘Show advanced options’ to add in your PAT details. Then add a Parse JSON step, this is where we are essentially going to extract our count of child items from our open Features. Choose ‘body’ as the content and add a schema like so:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "@@odata.context": {
+            "type": "string"
+        },
+        "vsts.warnings@odata.type": {
+            "type": "string"
+        },
+        "@@vsts.warnings": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "value": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "WorkItemId": {
+                        "type": "integer"
+                    },
+                    "Descendants": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "@@odata.id": {},
+                                "Count": {
+                                    "type": "integer"
+                                },
+                                "DescendantCount": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "@@odata.id",
+                                "Count",
+                                "DescendantCount"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "WorkItemId",
+                    "Descendants"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >This is where it gets a bit more complicated, we’re then going to add an <em>Apply to each</em> step, using the value from our previous step. Then do ANOTHER <em>Apply to each </em>where we’re going to take the descendant count for each ‘open’ Feature. Then we’re going to add a condition step. Where we’ll look at each open Feature and see if the Descendant count is less than or equal to our Rightsize variable:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >If yes, then we add an update work item step and ensure that we are choosing the ID and Work Item Type of the item from our query previously, and setting the Rightsized value to “Yes”. If no, then do the same as above but ensure you’re setting the Rightsized value to “No”:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >And that’s it — you’re (finally) done!</p><p  >If you run the automation, then it should successfully update your Features if they are/are not right-sized:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >It’s worth noting that any Features with 0 child items aren’t updated with yes/no, purely due to this likely being too early on in the process. Saying a Feature with 0 child items is ‘right-sized’ feels wrong to me but you are welcome to amend the flow if you disagree!</p><p  >There may be tweaks to the above you could make to improve flow performance, currently it runs at 1–2 minutes in duration:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >By implementing continuous right-sizing in Azure DevOps using Power Automate, teams can drive faster feedback loops, reduce delivery risks, and improve predictability. Automating the right-sizing check ensures the data remains visible and actionable, empowering teams to stay focused on maintaining manageable work sizes. With this flow in place, you’re not just optimising features — you’re fostering a culture of continuous improvement and efficiency.</p><p  >Stay tuned for my next post, where I’ll explore how to apply the same principles to Epics in Jira!</p>
+</div></div></main><footer class="site-footer"><div class="socials"><a href="https://www.linkedin.com/in/nicolasbrown02/">in</a><a href="https://github.com/nbrown02">GH</a></div></footer></body></html>

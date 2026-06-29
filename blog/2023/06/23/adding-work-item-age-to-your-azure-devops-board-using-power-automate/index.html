@@ -1,0 +1,144 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Adding Work Item Age to your Azure DevOps board using Power Automate | Nicolas Brown</title><link rel="stylesheet" href="../../../../../assets/style.css"></head><body class="plain-page"><header class="site-header"><a class="brand" href="../../../../../index.html">Nicolas Brown</a><nav class="nav"><a href="../../../../../index.html">Home</a><a href="../../../../../about/index.html">About</a><a href="../../../../../tools/index.html">Tools</a><a href="../../../../../speaking/index.html">Speaking</a><a href="../../../../../book/index.html">Books</a><a href="../../../../../blog/index.html">Blog</a><a class="contact-link" href="../../../../../contact/index.html">Contact</a></nav></header><main class="article"><h1>Adding Work Item Age to your Azure DevOps board using Power Automate</h1><div class="date">23 June 2023</div><div class="content"><div class="sqs-html-content" >
+  <p  ><em>The first in a series of three blogs covering how you can add flow metrics directly into your kanban board in Azure DevOps. Part one (this blog) will cover adding Work Item Age. </em><a href="https://nbrown02.medium.com/adding-cycle-time-to-your-azure-devops-board-using-power-automate-9e488d24373a" target="_blank"><em>Part two covers adding Cycle Time</em></a><em> and part three will show how to add in your Service Level Expectation (SLE)…</em></p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Context</h1><p  >As teams increase their curiosity around their flow of work, making this information as readily available to them is paramount. <a href="https://www.scrum.org/resources/blog/4-key-flow-metrics-and-how-use-them-scrums-events" target="_blank">Flow metrics</a> are the clear go-to as they provide great insights around predictability, responsiveness and just how sustainable a pace a team is working at. There is however, a challenge with getting teams to frequently use them. Whilst using them in a retrospective (say looking at outliers on a cycle time scatter plot) is a common practice, it is a lot harder trying to embed this into their every day conversations. There is no doubt these charts add great value but, plenty of teams forget about them in their daily sync/scrums as they will (more often than not) be focused on sharing their Kanban board. They will focus on discussing the items on the board, rather than using a flow metrics chart or dashboard, when it comes to planning for their day. As an Agile Coach, no matter how often I show it and stress the importance of it, plenty of teams that I work with still forget about the “secret sauce” of <em>Work Item Age</em> in their daily sync/scrum as it sits on a different URL/tool.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Example Work Item Age chart</p><p  >This got me thinking about how we might overcome this and remove a ‘barrier to entry’ around flow. Thankfully, automation tools can help. We can use tools like <a href="https://powerautomate.microsoft.com/en-gb/" target="_blank">Power Automate</a>, combined with other sources, to help improve the way teams work through making flow data visible…</p><h1 >Prerequisites</h1><p  >There are a few assumptions made in this series of posts:</p><ul data-rte-list="default"><li><p  >Within Azure DevOps (ADO) you have an <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/inheritance-process-model?view=azure-devops&amp;tabs=agile-process" target="_blank">inherited process template</a> and <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/settings/work/manage-process?view=azure-devops" target="_blank">access to edit this</a></p></li><li><p  >You know <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&amp;tabs=Windows" target="_blank">how to generate a Personal Access Token (PAT) in ADO</a> and have already done so with full or analytics read access</p></li><li><p  >States and state categories in your process template are <a href="https://learn.microsoft.com/en-us/azure/devops/boards/work-items/workflow-and-state-categories?view=azure-devops&amp;tabs=agile-process" target="_blank">configured correctly</a></p></li><li><p  >You have access to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a></p></li></ul><p  >With all those in place — let’s get started!</p><h1 >Adding a ‘Work Item Age’ field to ADO</h1><p  >We first need to add a new field into our process template in ADO called <em>Work Item Age</em>. You need to also know the respective work item type(s) you want to do this for. For the purpose of simplicity in this blog we will stick to <em>Product Backlog Item (PBI)</em> as the work item type we will set this up for and be using an inheritance of the <a href="https://learn.microsoft.com/en-us/azure/devops/boards/work-items/guidance/scrum-process?view=azure-devops" target="_blank">Scrum process template</a>.</p><p  ><strong>Please note, if you are wanting to do this for multiple work item types you will have to repeat the process of adding this field for each work item type.</strong></p><ul data-rte-list="default"><li><p  >Find the Product Backlog Item type in your inherited process template work items list</p></li><li><p  >Click into it and click ‘new field’</p></li><li><p  >Add the <em>Work Item Age</em> field — ensuring you specify it as an ‘integer’ type</p></li></ul>
+</div>
+<div class="sqs-html-content" >
+  <p  >That’s the easy part done, now let’s tackle the trickier bits…</p><h1 >Understanding how Work Item Age is to be calculated</h1><p  >From <a href="https://learn.microsoft.com/en-us/azure/devops/report/dashboards/cycle-time-and-lead-time?view=azure-devops" target="_blank">Microsoft's own documentation</a>, we can see that in ADO their <em>Cycle Time</em> calculation is from when an item first enters an ‘In Progress’ state category to entering a ‘Completed’ state category:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Source: </p><p  ><a href="https://learn.microsoft.com/en-us/azure/devops/report/dashboards/cycle-time-and-lead-time?view=azure-devops" target="_blank">Cycle Time and Lead Time control charts — Azure DevOps Services | Microsoft Learn</a></p><p  >Therefore, we can determine that for any items that have been started but not completed, the Work Item Age is calculated as the difference, in calendar days, between the current date and the time when an item first entered the ‘In Progress’ state category, also known as the <em>InProgressDate</em>.</p><p  >It is not the intent of this blog to get into a debate about adding +1 days to an item as there are no instances where an item has taken 0 days to complete — for that we have <a href="https://www.youtube.com/channel/UC758reHaPAeEixmCjWIbsOA" target="_blank">Drunk Agile</a> ;)</p><p  >Ultimately, calculating Work Item Age this way still aligns with the definition as set out in the <a href="https://kanbanguides.org/english/#elementor-toc__heading-anchor-10" target="_blank">kanban guide</a> as it is still “the amount of elapsed time between when a work item started and the current time.”</p><p  >Now let’s jump into the automation…</p><h1 >Automating Work Item Age</h1><p  >We start by creating a query in ADO of all our current ‘in progress’ items. The complexity of this will of course vary depending on your ADO setup. For this we are keeping it simple — any PBI’s in our single ‘In Progress’ state of <em>Committed</em>:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Please ensure that <em>Work Item Age</em> is added as one of your columns in your query. It needs to be saved as a shared query and with a memorable title (sometimes I like to add DO NOT EDIT in the title).</p><p  >Next we go to <a href="https://make.powerautomate.com/" target="_blank">Power Automate</a> and we create a <em>Scheduled cloud flow:</em></p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We are going to call this ‘Work Item Age’ and we will want this to run every day at a time that is before a teams daily sync/scrum (e.g. 8am).</p><p  >Once you’re happy with the time click create:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we need to click ‘+ new step’ and add an action to <em>Get query results</em> from the query we just set up:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Please ensure that you input the relevant ‘Organization Name’ and ‘Project Name’ where you have created the query:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Following this we are going to add a step to <em>Initialize variable</em> — this is essentially where we will ‘store’ what our Work Item Age is which, to start with, will be an integer with a value of 0:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we are going to add an <em>Apply to each</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We’ll select the ‘value’ from our ‘Get query results’ step as the starting point:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we’ll add a <em>Get work item details</em> step. Here we need to make sure the ‘Organization’ and ‘Project’ match what we set out at the beginning.</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >For Work Item Type we need to choose ‘Enter Custom Value’:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >We can then choose ‘Work Item Type’ and ‘ID’ as dynamic content from our ‘Get query results’ step previously:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >With the end result being:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Next we need to add a <em>HTTP</em> step. This is essentially where we are going to get the <em>InProgressDate</em> for our items:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >You’ll need to set the method as ‘GET’ and add in the the URL. The first part of the URL (replace ORG and PROJECT with your details) should be:</p><pre><code>https://analytics.dev.azure.com/ORG/PROJECT/_odata/v3.0-preview/WorkItems?$filter=WorkItemId%20eq%20</code></pre><p  >Add in the dynamic content of ‘Id’ from our Get work item details step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >After the Id, add in:</p><pre><code>&amp;$select=InProgressDate</code></pre><p  >Which should look like:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >You’ll then need to click ‘Show advanced options’ to add in your PAT details. Set the authentication to ‘Basic’, add in a username of ‘dummy’ and paste your PAT into the password field:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >PAT blurred for obvious reasons!</p><p  >Then we need to add in a <em>Parse JSON</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >This is where we are essentially going to extract our<em> InProgressDate</em>. </p><p  >Choose ‘body’ as the content and add a schema like so:</p><pre><code>{
+    "type": "object",
+    "properties": {
+        "@@odata.context": {
+            "type": "string"
+        },
+        "value": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "InProgressDate": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "InProgressDate"
+                ]
+            }
+        }
+    }
+}</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we need to format this how we want so it’s easier to do the date difference calculation. Add a <em>Compose</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Rename this to be <em>Formatted InProgressDate </em>and with the following as an expression:</p><pre><code>formatDateTime(body('Parse_JSON')?['value'][0]['InProgressDate'], 'yyyy-MM-dd')</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then add another <em>Compose</em> step, this time to get the <em>Current Date</em>, which should be an expression like so:</p><pre><code>formatDateTime(utcNow(), 'yyyy-MM-ddTHH:mm:ssZ')</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then we will add one more <em>Compose</em> step to calculate the <em>Date Difference</em>, which is the following expression:</p><pre><code>div(sub(ticks(outputs('Current_Date')), ticks(outputs('Formatted_InProgressDate'))), 864000000000)</code></pre>
+</div>
+<div class="sqs-html-content" >
+  <p  >This is essentially doing a (rather long-winded!) date difference calculation. This appears to be the only way to do this type of calculation in Power Automate.</p><p  >Then we need to add a step to <em>Set variable</em>, which was something we established earlier on to store the work item age:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Here we just need to choose the same variable name (<em>ItemAge</em>) and use the ‘outputs’ from the previous step (<em>Date Difference</em>) as the dynamic content:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Final step is to populate this on the respective work item in ADO. To do this, search for an <em>Update a work item</em> step:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then you will want to populate it with the ‘organization name’ and ‘project’ you’ve been using throughout. You also need to ensure you add in ‘Id’ for the Work Item Id and ‘Work Item Type’ from your steps previous:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then you need to click ‘Show advanced options’ and add ‘<em>Work Item Age</em>’ into other fields and choose ‘<em>ItemAge</em>’ as the value:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then hit save and the flow is created (ensure all your step names match the below):</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then it’s best to do a test run, which you can do by clicking Test, select ‘Manually’ and then click Test &gt; Run Flow:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Clicking ‘Done’ will take you to a page that will show you if steps have been successful and which are in progress:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >You can also view the ‘Run history’ to see if it is successful. Please note the amount of in progress items will impact how long the flow takes:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Once run, if you check back into Azure DevOps and your query, you should now see your Work Item Age field populated:</p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Making this visible on the Kanban board</h1><p  >The final step is to make this visible on the Kanban board. To do this we need to go into our board settings and find the respective work item type. Under ‘Additional fields’ you’ll want to add <em>Work Item Age:</em></p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Then, when your board refreshes, you will see the Work Item Age for your ‘In Progress’ items:</p>
+</div>
+<div class="sqs-html-content" >
+  <h1 >Ways you could take it further</h1><p  >Now, teams who are using the board as part of their daily sync/scrum also have the age of work items visible on the cards themselves. This allows them to make informed decisions about their plan for the day, without having to flip between different tools/links to view any charts.</p><p  >You can then take this further, for example adding styling rules for when items go past a particular age:</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Similarly, you could also leverage the <a href="https://learn.microsoft.com/en-us/azure/devops/release-notes/2023/sprint-221-update#swimlane-rules-is-generally-available" target="_blank">swimlane rules functionality that was recently released</a> and create a swimlane for items a team should be considering swarming on. This could be where items are close to exceeding a teams’ forecasted cycle time or Service Level Expectation (SLE):</p>
+</div>
+<div class="sqs-html-content" >
+  <p  >Hopefully this is a useful starting point for increasing awareness of Work Item Age on the board for a team.</p><p  ><a href="https://nbrown02.medium.com/adding-cycle-time-to-your-azure-devops-board-using-power-automate-9e488d24373a" target="_blank">Check out part two</a> which details how to automate the adding of Cycle Time to the work item form for completed items…</p>
+</div></div></main><footer class="site-footer"><div class="socials"><a href="https://www.linkedin.com/in/nicolasbrown02/">in</a><a href="https://github.com/nbrown02">GH</a></div></footer></body></html>
